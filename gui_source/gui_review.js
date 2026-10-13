@@ -1,5 +1,6 @@
 /* Central review is separate from the immutable raw episode status. */
 let reviewSnapshot=null,reviewDocument=null,reviewTarget=null,reviewLoading=false,reviewSelected=new Set(),inventoryPending=false;
+let reviewExportJob=null,exportPolling=false,exportSubmitting=false,exportSyncError='',exportRequestSerial=0;
 const workflowNames={pending_primary:'待初审',pending_secondary:'待复审',approved:'审核通过',rejected:'审核不通过',rework:'待返工',disputed:'待仲裁'};
 const qcNames={passed:'无告警',failed:'有告警',error:'检查异常'};
 const targetLabels={completeness_pct:'帧完整率 ≥ %',receipt_skew_ms:'主机接收差 < ms',jerk_rms:'末端 RMS Jerk < m/s³',speed_cv:'末端速度 CV <',batch_score:'批次分数 ≥',task_success_pct:'任务成功率 ≥ %',human_pass_pct:'复审通过率 ≥ %',kappa:'独立抽检 Kappa ≥',secondary_sample_pct:'复审抽样建议 %',failure_min_pct:'失败/恢复样本建议下限 %',failure_max_pct:'失败/恢复样本建议上限 %',minimum_episodes:'统计判定最少片段数'};
@@ -33,15 +34,50 @@ function renderReviewSnapshot(){
   if(!$('reviewTargets').children.length||!$('reviewTargetsForm').contains(document.activeElement)){const root=$('reviewTargets');root.replaceChildren();for(const [k,label] of Object.entries(targetLabels)){const wrap=node('label','field',label),input=node('input');input.type='number';input.step=k==='minimum_episodes'?'1':'0.01';input.min=k==='minimum_episodes'?'1':'0';input.max=k==='kappa'?'1':k.endsWith('_pct')?'100':'100000';input.value=t[k];input.dataset.target=k;wrap.append(input);root.append(wrap);}}
   renderReviewExport();
 }
-function renderReviewExport(){const job=reviewSnapshot?.export_job||{};$('exportObservations').disabled=!reviewSelected.size||busy||!connected||['PREPARING','RECORDING','EXPORTING'].includes(status.phase)||job.status==='running';$('reviewSelection').textContent=`已选 ${reviewSelected.size} 段 · 观测档案，待补动作目标`;$('reviewExportStatus').textContent=job.status==='running'?'正在编码和校验，完成后显示服务器保存位置…':job.status==='complete'?`已导出 ${job.result.episodes} 段 / ${job.result.frames} 帧；官方加载校验通过。\n${job.result.path}`:job.status==='failed'?'导出失败：'+job.error:'';}
+function acceptExportJob(job){
+  const before=reviewExportJob;reviewExportJob=job;exportSyncError='';
+  if(before?.status==='running'&&['complete','failed'].includes(job.status)){toast(job.status==='complete'?'导出完成，结果已保存。':'导出失败，请查看原因。');void refresh();}
+  renderReviewExport();
+}
+async function refreshExportJob(){
+  if(exportPolling||exportSubmitting)return;exportPolling=true;const serial=exportRequestSerial;
+  try{const job=await api('/api/reviews/export');if(serial===exportRequestSerial)acceptExportJob(job);}
+  catch(e){if(serial===exportRequestSerial){exportSyncError='状态更新失败，正在重试；请勿重复导出。';renderReviewExport();}}
+  finally{exportPolling=false;}
+}
+function renderReviewExport(){
+  const job=reviewExportJob||reviewSnapshot?.export_job||{},running=job.status==='running',complete=job.status==='complete',failed=job.status==='failed';
+  $('exportObservations').disabled=exportSubmitting||!!exportSyncError||!reviewSelected.size||busy||!connected||['PREPARING','RECORDING','EXPORTING'].includes(status.phase)||running;
+  $('exportObservations').textContent=exportSubmitting?'正在提交…':running?'正在导出…':'导出选中 · LeRobot v2.1';
+  $('reviewSelection').textContent=`已选 ${reviewSelected.size} 段 · 观测档案，待补动作目标`;
+  const p=job.progress||{},stage={preparing:'准备数据',encoding:'生成视频',checking_video:'检查视频与计算统计',official_validation:'官方格式加载验证'}[p.stage]||'编码和校验';
+  const location=p.camera?` · ${p.camera} · 片段 ${p.episode}/${p.episodes}`:'';
+  const elapsed=Number.isFinite(job.elapsed_seconds)?` · 用时 ${Math.round(job.elapsed_seconds)} 秒`:'';
+  const label=exportSubmitting?'正在提交导出任务…':running?`${stage}${location}`:complete?`导出完成 · ${job.result.episodes} 段 / ${job.result.frames} 帧${elapsed}`:failed?'导出失败：'+job.error:'';
+  $('reviewExportStatus').textContent=[exportSyncError,label,complete?'已保存到服务器：\n'+job.result.path:''].filter(Boolean).join('\n');
+  $('reviewExportStatus').dataset.state=exportSyncError?'warning':job.status||'idle';
+  $('exportNotice').hidden=!label&&!exportSyncError;$('exportNotice').dataset.state=exportSyncError?'warning':job.status||'idle';
+  $('exportNoticeText').textContent=exportSyncError||label;
+}
 async function openReview(id){try{reviewDocument=await api('/api/reviews/detail?episode='+encodeURIComponent(id));reviewTarget=reviewSnapshot?.entries.find(e=>e.episode.episode_id===id)?.episode||episodes.find(e=>e.episode_id===id);const d=reviewDocument;$('reviewEpisodeTitle').textContent=(reviewTarget?.task||'')+' · '+id;$('reviewCurrentStage').textContent=workflowNames[d.state]+'；原始文件保留';$('reviewStage').value=d.state==='pending_primary'?'primary':(d.state==='pending_secondary'||(d.state==='approved'&&!d.secondary))?'secondary':['rework','rejected'].includes(d.state)?'resubmit':d.state==='disputed'?'arbitration':'blind';$('reviewOutcome').value=d.outcome;$('reviewReason').value='';$('reviewIndependent').checked=false;$('reviewDecision').value='pass';for(const [id,key] of [['reviewLighting','lighting'],['reviewScene','scene'],['reviewObject','object'],['reviewRubric','rubric'],['reviewEnvironment','environment']])$(id).value=d.metadata[key]||'';$('reviewDialogError').textContent='';$('reviewAdvanced').open=false;$('reviewQualityDetails').open=false;try{$('reviewerId').value=localStorage.getItem('collector.reviewer')||'';}catch{}renderReviewDetail();if(!$('reviewDialog').open)$('reviewDialog').showModal();}catch(e){toast(e.message);}}
 function renderReviewDetail(){const d=reviewDocument;if(!d)return;const stage=$('reviewStage').value,blind=stage==='blind';$('reviewerId').required=!['primary','resubmit'].includes(stage);$('reviewerLabel').firstChild.textContent=$('reviewerId').required?'审核员 ID':'审核员 ID（可选）';$('submitReview').textContent=stage==='primary'?'提交审核':stage==='secondary'?'提交复审（可选）':stage==='resubmit'?'重新送审':'提交判定';$('reviewQualityNotice').textContent=d.l1?.status==='passed'?'自动检查无告警；以人工判定为准。':d.l1?'存在质量告警，仍可人工通过；导出会保留报告。':'自动检查进行中，可直接人工通过。';$('reviewQualityDetails').hidden=blind;$('independentLabel').hidden=!blind;$('reviewHistoryBox').hidden=blind;$('reviewCheckReport').hidden=blind;$('reviewCurrentStage').hidden=blind;$('reviewDecision').disabled=$('reviewStage').value==='resubmit';const root=$('reviewCheckReport');root.replaceChildren();if(!d.l1)root.append(node('p','help','自动初筛排队中；可以先回放，可直接人工审核通过。'));else{root.append(node('strong','',`质量提示：${qcNames[d.l1.status]||d.l1.status} · ${d.l1.score??'—'} 分`));if(d.l1.error)root.append(node('p','help',d.l1.error));const list=node('ul');for(const c of d.l1.checks||[])list.append(node('li','',(c.passed?'✓ ':'✗ ')+c.detail));root.append(list);for(const [k,m] of Object.entries(d.l1.metrics||{}))root.append(node('p','help',(metricLabels[k]||k)+'：'+(m.value==null?'无法计算 / 未接入 — '+m.reason:Number(m.value).toFixed(3)+' '+(m.unit||'')+(Number.isFinite(m.p95)?` · 典型 ${m.p50.toFixed(1)} / P95 ${m.p95.toFixed(1)} ms · 超目标 ${m.over_target_pct.toFixed(1)}%`:'' ))));}const history=$('reviewHistory');history.replaceChildren();for(const h of d.history.slice(-30).reverse())history.append(node('div','review-history-line',[h.at,h.stage,h.reviewer,h.decision||h.status,h.reason].filter(Boolean).join(' · ')));}
 $('reviewStage').onchange=renderReviewDetail;$('closeReviewDialog').onclick=()=>$('reviewDialog').close();$('reviewReplay').onclick=()=>{$('reviewDialog').close();if(reviewTarget)void showReplay(reviewTarget);};
 $('reviewDecisionForm').onsubmit=async e=>{e.preventDefault();if(!reviewDocument)return;$('submitReview').disabled=true;try{const reviewer=$('reviewerId').value.trim();const d=await api('/api/reviews/decision',{episode_id:reviewDocument.episode_id,revision:reviewDocument.revision,stage:$('reviewStage').value,decision:$('reviewDecision').value,reviewer,reason:$('reviewReason').value,error_type:$('reviewErrorType').value,outcome:$('reviewOutcome').value,independent:$('reviewIndependent').checked,metadata:{environment:$('reviewEnvironment').value,scene:$('reviewScene').value,object:$('reviewObject').value,lighting:$('reviewLighting').value,rubric:$('reviewRubric').value}});try{localStorage.setItem('collector.reviewer',reviewer);}catch{}reviewDocument=d;if(d.state==='approved'){reviewSelected.add(d.episode_id);$('reviewFilter').value='all';} $('reviewDialog').close();await refreshReviews();toast(d.state==='approved'?'审核通过，已选中，可直接导出。':'审核记录已保存，原始录制保留。');}catch(err){$('reviewDialogError').textContent=err.message;}finally{$('submitReview').disabled=false;}};
 $('repeatInspection').onclick=async()=>{try{await api('/api/reviews/check',{episode_id:reviewDocument.episode_id});$('reviewDialog').close();await refreshReviews();toast('已加入重新初筛队列。');}catch(e){$('reviewDialogError').textContent=e.message;}};
 $('reviewTargetsForm').onsubmit=async e=>{e.preventDefault();try{const values={};for(const i of document.querySelectorAll('[data-target]'))values[i.dataset.target]=Number(i.value);await api('/api/reviews/targets',{revision:reviewSnapshot.targets.revision,values});await refreshReviews();toast('目标已保存，历史报告需重新初筛。');}catch(err){toast(err.message);}};
-$('exportObservations').onclick=async()=>{try{await api('/api/reviews/export',{episode_ids:[...reviewSelected],kind:'observations'});await refreshReviews();}catch(e){toast(e.message);}};
-$('refreshReviews').onclick=refreshReviews;for(const id of ['reviewFilter','reviewSearch'])$(id)[id==='reviewSearch'?'oninput':'onchange']=renderReviewSnapshot;$('reviewDay').onchange=refreshReviews;
+$('exportObservations').onclick=async()=>{
+  if(exportSubmitting||reviewExportJob?.status==='running')return;
+  exportSubmitting=true;++exportRequestSerial;renderReviewExport();
+  try{const job=await api('/api/reviews/export',{episode_ids:[...reviewSelected],kind:'observations'});++exportRequestSerial;acceptExportJob(job);}
+  catch(e){exportSyncError=e.message;toast(e.message);}
+  finally{exportSubmitting=false;renderReviewExport();void refreshExportJob();void refresh();}
+};
+$('exportNoticeOpen').onclick=()=>{setTab('reviews');$('reviewExportStatus').scrollIntoView({block:'center',behavior:'smooth'});void refreshExportJob();};
+setInterval(()=>{if(!document.hidden)void refreshExportJob();},1500);
+for(const event of ['focus','online'])window.addEventListener(event,()=>{void refreshExportJob();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)void refreshExportJob();});
+void refreshExportJob();
+$('refreshReviews').onclick=()=>{void refreshReviews();void refreshExportJob();};for(const id of ['reviewFilter','reviewSearch'])$(id)[id==='reviewSearch'?'oninput':'onchange']=renderReviewSnapshot;$('reviewDay').onchange=refreshReviews;
 function centralReviewControls(){
   const ep=reviewEpisode();$('keep').textContent='进入集中审核';$('discard').textContent=ep?.status==='FAULT'||ep?.status==='RECOVERED'?'保留故障记录，返回采集':'稍后审核，返回采集';
   $('keep').disabled=busy||!connected||!ep||['PREPARING','RECORDING','EXPORTING'].includes(status.phase);
@@ -50,7 +86,7 @@ function centralReviewControls(){
   $('discard').onclick=()=>action(async()=>{if(status.phase==='FAULT'&&ep?.episode_id===status.last_episode)await api('/api/reviews/acknowledge-fault',{episode_id:ep.episode_id});else if(status.phase==='REVIEW'&&ep?.episode_id===status.last_episode)await api('/api/prepare-next',{episode_id:ep.episode_id});live();toast('录制已保留，可稍后集中审核。');});
   $('export').disabled=busy||!connected;$('export').textContent='前往审核与导出';$('export').onclick=()=>setTab('reviews');
   $('selectionHint').textContent='LeRobot v2.1 导出请进入审核中心，选择人工审核通过的片段。';
-  if(reviewSnapshot)renderReviewExport();
+  renderReviewExport();
   if($('reviewDecisionStatus'))$('reviewDecisionStatus').textContent=ep?'原始录制已保存；进入审核中心确认后即可导出。':'';
 }
 async function refreshInventory(scan=true){if(inventoryPending||!connected)return;inventoryPending=true;try{let data=await api('/api/cameras/inventory');if(scan&&!data.paused&&!data.scanning)data=await api('/api/cameras/discover',{});renderInventory(data);}catch(e){$('inventoryStatus').textContent=e.message;}finally{inventoryPending=false;}}

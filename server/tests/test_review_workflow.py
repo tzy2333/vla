@@ -182,4 +182,39 @@ class ReviewTests(unittest.TestCase):
         m=json.loads((Path(result['path'])/'provenance/episode_000000/manifest.json').read_text())
         self.assertEqual(m['fault'],self.manifest['fault']);self.assertEqual(result['frames'],8)
 
+    def test_export_status_independent_of_list_and_survives_restart(self):
+        self.decide()
+        with patch('collector.observation_export.export_observations',return_value={'path':'fixture','frames':8,'episodes':1}):
+            self.workflow.start_export(dict(episode_ids=[ID]));self.workflow.export_thread.join(5)
+        with patch.object(self.app,'episodes',side_effect=RuntimeError('list unavailable')):
+            job=self.workflow.export_status()
+        self.assertEqual(job['status'],'complete');self.assertEqual(job['collector_phase'],'IDLE')
+        self.assertIn('elapsed_seconds',job);self.assertIn('finished_at',job)
+        restored=ReviewWorkflow(self.app,False)
+        try:self.assertEqual(restored.export_status()['result'],job['result'])
+        finally:restored.close()
+
+    def test_interrupted_export_is_not_restored_as_running(self):
+        atomic_json(self.workflow.export_state_path,dict(status='running',episode_ids=[ID],started_at='fixture'))
+        restored=ReviewWorkflow(self.app,False)
+        try:
+            self.assertEqual(restored.export_status()['status'],'failed')
+            self.assertIn('重启',restored.export_status()['error'])
+        finally:restored.close()
+
+    def test_export_reports_progress_and_failure_without_stuck_collector(self):
+        self.decide();entered=threading.Event();release=threading.Event()
+        def exporting(*args,**kwargs):
+            kwargs['progress'](stage='checking_video',camera='head',episode=1,episodes=1)
+            entered.set();release.wait(4);raise ValueError('decode failed')
+        with patch('collector.observation_export.export_observations',side_effect=exporting):
+            self.workflow.start_export(dict(episode_ids=[ID]));self.assertTrue(entered.wait(2))
+            try:
+                job=self.workflow.export_status();self.assertEqual(job['status'],'running')
+                self.assertEqual(job['progress']['stage'],'checking_video')
+                with self.assertRaises(ValueError):self.workflow.start_export(dict(episode_ids=[ID]))
+            finally:release.set();self.workflow.export_thread.join(5)
+        job=self.workflow.export_status();self.assertEqual(job['status'],'failed');self.assertEqual(job['collector_phase'],'IDLE')
+        self.assertIn('decode failed',job['error'])
+
 if __name__=='__main__':unittest.main()

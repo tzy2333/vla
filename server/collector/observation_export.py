@@ -46,7 +46,9 @@ def validate_official(root):
     return dict(passed=True,loader_version='0.3.3',format='v2.1',samples_checked=inspected,video_backend='pyav')
 
 
-def export_observations(paths,output_root,reviews,annotations=None,verify_official=True):
+def export_observations(paths,output_root,reviews,annotations=None,verify_official=True,progress=None):
+    progress=progress or (lambda **fields:None)
+    progress(stage='preparing')
     bundles=[]
     for path in paths:
         raw=Path(path);m=load_json(raw/'manifest.json');rows=read_rows(raw)
@@ -95,7 +97,11 @@ def export_observations(paths,output_root,reviews,annotations=None,verify_offici
                 for s in ('min','max','mean','std'):es[k][s]=[es[k][s]]
         for key in c['camera_keys']:
             vk='observation.images.'+key;video=temp/VIDEO_PATH.format(episode_chunk=ep//1000,episode_index=ep,video_key=vk)
-            h,w,_=c['camera_shapes'][key];encode_video(raw,rows,key,video,fps,w,h);es[vk]=video_stats(video,n,fps)
+            h,w,_=c['camera_shapes'][key]
+            progress(stage='encoding',episode=ep+1,episodes=len(bundles),camera=key)
+            encode_video(raw,rows,key,video,fps,w,h)
+            progress(stage='checking_video',episode=ep+1,episodes=len(bundles),camera=key)
+            es[vk]=video_stats(video,n,fps)
         ident=m['episode_id'];dest=temp/'provenance'/f'episode_{ep:06d}';dest.mkdir()
         atomic_json(dest/'manifest.json',m);atomic_json(dest/'review.json',reviews[ident])
         for source in ('samples.jsonl','feedback.jsonl','events.jsonl','commands.jsonl'):
@@ -112,6 +118,7 @@ def export_observations(paths,output_root,reviews,annotations=None,verify_offici
         contract=c,provenance_path='provenance/episode_{episode_index:06d}')
     atomic_json(temp/'meta/info.json',info);jsonl(temp/'meta/tasks.jsonl',[dict(task_index=i,task=t) for i,t in enumerate(tasks)])
     jsonl(temp/'meta/episodes.jsonl',episode_meta);jsonl(temp/'meta/episodes_stats.jsonl',stats)
+    progress(stage='official_validation')
     validation=validate_official(temp) if verify_official else dict(passed=False,reason='isolated test only')
     atomic_json(temp/'validation.json',dict(parquet_full_readback=True,all_video_frames_decoded=True,official=validation))
     (temp/'README.md').write_text('# Real observations · LeRobot v2.1\n\n真实观测档案，缺少真实 action，training_ready=false。不可直接用于行为克隆训练。\n'

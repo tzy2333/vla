@@ -89,6 +89,7 @@ def main():
                 if path=='/api/episodes': return self.reply({'episodes':app.episodes()})
                 if path=='/api/segments': return self.reply(segments.read(q.get('episode',[''])[0]))
                 if path=='/api/reviews': return self.reply(reviews.snapshot(q.get('day',[''])[0],q.get('task_id',[''])[0]))
+                if path=='/api/reviews/export': return self.reply(reviews.export_status())
                 if path=='/api/reviews/detail': return self.reply(reviews.read(q.get('episode',[''])[0]))
                 if path=='/api/cameras/inventory': return self.reply(inventory.view())
                 if path=='/api/tasks':

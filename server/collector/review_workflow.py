@@ -20,7 +20,13 @@ class ReviewWorkflow:
     def __init__(self, app, start_worker=True):
         self.app=app; self.root=app.data/'reviews'; self.root.mkdir(exist_ok=True)
         self.lock=threading.RLock();self.stop=threading.Event();self.worker=None;self.active=None
-        self.export_job=dict(status='idle'); self.export_thread=None
+        self.export_state_path=self.root/'.export-job.json'
+        self.export_job=load_json(self.export_state_path) if self.export_state_path.exists() else dict(status='idle')
+        if self.export_job['status']=='running':
+            self.export_job.update(status='failed',error='服务重启，导出已中断。原始数据保留，可重新导出。',finished_at=now())
+            atomic_json(self.export_state_path,self.export_job)
+        if self.export_job['status']=='complete':self.app.last_export=self.export_job['result']
+        self.export_thread=None
         if start_worker:
             self.worker=threading.Thread(target=self._loop,daemon=True);self.worker.start()
 
@@ -195,6 +201,16 @@ class ReviewWorkflow:
                 error_types=dict(errors),diversity=diversity)
             return dict(entries=entries,summary=summary,targets=targets,active_check=self.active,export_job=copy.deepcopy(self.export_job))
 
+    def export_status(self):
+        # Independent of episode enumeration and quality reports.
+        with self.lock,self.app.lock:
+            return dict(copy.deepcopy(self.export_job),collector_phase=self.app.phase)
+
+    def _export_progress(self,**progress):
+        with self.lock:
+            self.export_job.update(progress=progress,updated_at=now())
+            atomic_json(self.export_state_path,self.export_job)
+
     def start_export(self,b):
         ids=b.get('episode_ids');kind=b.get('kind','observations')
         if not isinstance(ids,list) or not 1<=len(ids)<=100 or len(set(ids))!=len(ids):raise ValueError('请选择1至100个不重复片段。')
@@ -204,18 +220,25 @@ class ReviewWorkflow:
             for ident in ids:
                 self.context(ident);d=self.load(ident)
                 if d['state']!='approved':raise ValueError('请先人工审核通过所选片段；无需等待自动检查或复审。')
-            previous=self.app.phase;self.app.phase='EXPORTING'
-            self.export_job=dict(status='running',started_at=now(),episode_ids=ids,format='v2.1')
+            previous=self.app.phase
             reviews={ident:copy.deepcopy(self.load(ident)) for ident in ids}
+            job=dict(job_id=uuid.uuid4().hex,status='running',started_at=now(),episode_ids=ids,format='v2.1',progress=dict(stage='preparing'))
+            atomic_json(self.export_state_path,job)
+            self.export_job=job;self.app.phase='EXPORTING'
             def run():
+                started=time.monotonic()
                 try:
                     from .observation_export import export_observations
-                    result=export_observations([self.app.episode_path(i) for i in ids],self.app.exports,reviews,self.app.data/'annotations')
-                    with self.lock:self.export_job.update(status='complete',result=result);self.app.last_export=result
+                    result=export_observations([self.app.episode_path(i) for i in ids],self.app.exports,reviews,self.app.data/'annotations',progress=self._export_progress)
+                    terminal=dict(status='complete',result=result)
                 except Exception as exc:
-                    with self.lock:self.export_job.update(status='failed',error=str(exc))
-                finally:
-                    with self.app.lock:self.app.phase=previous
+                    terminal=dict(status='failed',error=str(exc))
+                # The terminal job and collector phase change atomically to readers.
+                with self.lock,self.app.lock:
+                    self.app.phase=previous
+                    if terminal['status']=='complete':self.app.last_export=terminal['result']
+                    self.export_job.update(**terminal,finished_at=now(),elapsed_seconds=round(time.monotonic()-started,2))
+                    atomic_json(self.export_state_path,self.export_job)
             self.export_thread=threading.Thread(target=run,daemon=True);self.export_thread.start()
             return copy.deepcopy(self.export_job)
 
