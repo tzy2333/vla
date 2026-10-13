@@ -44,7 +44,7 @@
   "height": 240,
   "camera_max_age_ms": 60,
   "camera_pair_max_skew_ms": 20,
-  "camera_pairing_policy": "oldest_valid_causal_pair_v2",
+  "camera_pairing_policy": "reserve_usable_low_latency_v3",
   "camera_wait_budget_ms": 15,
   "feedback_max_age_ms": 100,
   "sample_lateness_max_ms": 75,

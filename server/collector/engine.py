@@ -23,6 +23,9 @@ class Collector:
             raise ValueError('Only real robot mode is supported; simulation has been removed.')
         if config.get('base_enabled'):
             raise ValueError('Base navigation is disabled for tabletop acquisition.')
+        # Upgrade reserve scheduling, preserving all configured timing limits.
+        if config.get('camera_pairing_policy')=='oldest_valid_causal_pair_v2':
+            config['camera_pairing_policy']='reserve_usable_low_latency_v3'
         self.config=config
         configure_timing(config)
         self.data=(Path(root)/config['data_dir']).resolve()

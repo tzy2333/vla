@@ -49,10 +49,13 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual((s['primary_passed'],s['secondary_passed'],s['final_delivery'],s['pending']),(1,1,1,0))
         self.assertEqual(s['task_success_rate'],0)
     def test_stale_revision_rejected(self):
-        self.workflow.inspect(ID)
+        self.decide()
         with self.assertRaises(ValueError):self.workflow.mutate(dict(episode_id=ID,revision='0',stage='primary',decision='pass',reviewer='a'))
-    def test_no_pass_without_l1(self):
-        with self.assertRaises(ValueError):self.decide()
+    def test_quick_pass_without_l1_or_reviewer(self):
+        d=self.decide(reviewer='')
+        self.assertEqual(d['state'],'approved')
+        s=self.workflow.snapshot()['summary']
+        self.assertEqual((s['final_delivery'],s['primary_passed'],s['secondary_passed']),(1,1,0))
     def test_reject_reason_required(self):
         with self.assertRaises(ValueError):self.decide(decision='reject')
         self.decide(decision='reject',reason='bad annotation');self.assertEqual(self.workflow.snapshot()['summary']['rejected'],1)
@@ -72,17 +75,19 @@ class ReviewTests(unittest.TestCase):
     def test_busy_rejects_decisions(self):
         self.app.phase='RECORDING'
         with self.assertRaises(ValueError):self.decide(decision='reject',reason='bad')
-    def test_threshold_change_invalidates_delivery(self):
+    def test_threshold_change_does_not_invalidate_delivery(self):
         self.workflow.inspect(ID);self.decide();self.decide('secondary',reviewer='b')
         t=self.workflow.targets();self.workflow.save_targets(dict(revision=t['revision'],values=dict(t['values'],receipt_skew_ms=9)))
-        self.assertEqual(self.workflow.snapshot()['summary']['final_delivery'],0)
-        with self.assertRaises(ValueError):self.workflow.start_export(dict(episode_ids=[ID]))
+        self.assertEqual(self.workflow.snapshot()['summary']['final_delivery'],1)
+        with patch('collector.observation_export.export_observations',return_value={'ok':True}):
+            self.workflow.start_export(dict(episode_ids=[ID]));self.workflow.export_thread.join(5)
+        self.assertEqual(self.workflow.export_job['status'],'complete')
     def test_corrupt_image_and_fault_critical(self):
         (self.raw/'cameras/head/000001.jpg').write_bytes(b'broken');r=inspect_episode(self.raw,DEFAULTS)
         self.assertEqual(r['score'],0);self.assertTrue(r['critical_failure']);self.assertEqual(r['status'],'failed')
     def test_critical_failure_veto_even_with_small_batch(self):
         (self.raw/'cameras/head/000001.jpg').write_bytes(b'broken');self.workflow.inspect(ID)
-        self.assertEqual(self.workflow.snapshot()['summary']['batch_status'],'不通过（致命项）')
+        self.assertEqual(self.workflow.snapshot()['summary']['batch_status'],'警告：存在数据异常')
     def test_missing_sensors_unavailable(self):
         r=inspect_episode(self.raw,DEFAULTS);self.assertEqual(r['status'],'passed')
         for k in ('jerk_rms','speed_cv','exposure_sync_ms','action'):self.assertIsNone(r['metrics'][k]['value'])
@@ -137,6 +142,44 @@ class ReviewTests(unittest.TestCase):
         self.assertIsNone(r['metrics']['jerk_rms']['value'])
     def test_legacy_review_does_not_become_secondary(self):
         self.manifest['status']='COMMITTED';atomic_json(self.raw/'manifest.json',self.manifest)
-        s=self.workflow.snapshot()['summary'];self.assertEqual(s['pending_primary'],1);self.assertEqual(s['secondary_passed'],0)
+        s=self.workflow.snapshot()['summary'];self.assertEqual(s['pending_primary'],0);self.assertEqual(s['secondary_passed'],0);self.assertEqual(s['final_delivery'],1)
+
+    def test_automatic_updates_do_not_expire_open_human_form(self):
+        d=self.workflow.read(ID);self.workflow.inspect(ID);self.workflow.queue_check(ID)
+        result=self.workflow.mutate(dict(episode_id=ID,revision=d['revision'],stage='primary',decision='pass',reviewer=''))
+        self.assertEqual(result['state'],'approved')
+        (self.raw/'cameras/head/000001.jpg').write_bytes(b'broken')
+        self.workflow.inspect(ID)
+        self.assertEqual(self.workflow.read(ID)['revision'],result['revision'])
+        self.assertEqual(self.workflow.read(ID)['state'],'approved')
+        self.assertEqual(self.workflow.read(ID)['l1']['status'],'failed')
+
+    def test_failed_l1_can_be_overridden_by_human_and_export_failure_restores_phase(self):
+        (self.raw/'cameras/head/000001.jpg').write_bytes(b'broken');self.workflow.inspect(ID)
+        self.decide();self.assertEqual(self.workflow.read(ID)['state'],'approved')
+        with patch('collector.observation_export.export_observations',side_effect=ValueError('image unreadable')):
+            self.workflow.start_export(dict(episode_ids=[ID]));self.workflow.export_thread.join(5)
+        self.assertEqual(self.workflow.export_job['status'],'failed')
+        self.assertIn('image unreadable',self.workflow.export_job['error']);self.assertEqual(self.app.phase,'IDLE')
+
+    def test_previous_primary_pass_is_exportable_without_fake_secondary(self):
+        d=self.decide();d['state']='pending_secondary';self.workflow._save(d)
+        s=self.workflow.snapshot()['summary'];self.assertEqual(s['final_delivery'],1);self.assertEqual(s['secondary_passed'],0)
+
+    def test_legacy_reject_is_not_auto_approved_and_new_human_decision_wins(self):
+        self.manifest['status']='DISCARDED';atomic_json(self.raw/'manifest.json',self.manifest)
+        self.assertEqual(self.workflow.read(ID)['state'],'rejected')
+        with self.assertRaises(ValueError):self.workflow.start_export(dict(episode_ids=[ID]))
+        self.decide('resubmit',reason='look again');self.decide()
+        self.assertEqual(self.workflow.read(ID)['state'],'approved')
+        self.assertEqual(json.loads((self.raw/'manifest.json').read_text())['status'],'DISCARDED')
+
+    def test_fault_ended_saved_frames_export_with_fault_provenance(self):
+        from collector.observation_export import export_observations
+        self.manifest.update(status='FAULT',fault='device disconnected after saved frames');atomic_json(self.raw/'manifest.json',self.manifest)
+        self.decide()
+        result=export_observations([self.raw],self.root/'exports',{ID:self.workflow.read(ID)},verify_official=False)
+        m=json.loads((Path(result['path'])/'provenance/episode_000000/manifest.json').read_text())
+        self.assertEqual(m['fault'],self.manifest['fault']);self.assertEqual(result['frames'],8)
 
 if __name__=='__main__':unittest.main()

@@ -50,13 +50,13 @@ def export_observations(paths,output_root,reviews,annotations=None,verify_offici
     bundles=[]
     for path in paths:
         raw=Path(path);m=load_json(raw/'manifest.json');rows=read_rows(raw)
-        if not real_episode(m) or m.get('fault') or not rows or len(rows)!=m['frame_count']:raise ValueError('片段必须为完整真实观测。')
+        if not real_episode(m) or not rows or len(rows)!=m['frame_count']:raise ValueError(f"{m.get('episode_id',raw.name)}：没有可导出的真实帧，或保存帧数与记录不一致。")
         if any(r.get('action') is not None for r in rows):raise ValueError('该导出器仅用于无动作目标的观测档案；动作数据需单独契约。')
         c=contract(m,rows)
         if bundles and c!=bundles[0][3]:raise ValueError('相机、关节通道、标定或采样率不同，请分批导出。')
         for i,r in enumerate(rows):
             a=np.asarray(r.get('observation.state') or [],dtype=float)
-            if r.get('frame_index')!=i or a.shape!=(c['state_size'],) or not np.isfinite(a).all() or not all(r.get('state_valid_mask',[True]*len(a))):raise ValueError('状态或帧索引无效，不能用零填充缺失状态。')
+            if r.get('frame_index')!=i or a.shape!=(c['state_size'],) or not np.isfinite(a).all() or not all(r.get('state_valid_mask',[True]*len(a))):raise ValueError(f"{m['episode_id']} 第 {i} 帧：关节数据缺失或帧索引损坏，无法转换为 v2.1。原始数据仍保留。")
             for key in c['camera_keys']:
                 image=(raw/r['images'][key]['path']).resolve()
                 if not image.is_relative_to(raw.resolve()):raise ValueError('图像路径越界。')

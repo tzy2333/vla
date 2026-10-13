@@ -60,7 +60,17 @@ def freshest_valid_pair(candidates, target_ns, observed_ns, previous, config):
         if (max(receipts)-min(receipts))/1e6 > config.get('camera_pair_max_skew_ms',20):
             continue
         stamps = [frame_time(frame) for frame in frames]
-        if config.get('camera_pairing_policy')=='oldest_valid_causal_pair_v2':
+        if config.get('camera_pairing_policy')=='reserve_usable_low_latency_v3':
+            # Only reserve a frame if it can still meet the NEXT grid's limits.
+            # Keeping an already-expiring frame needlessly adds a native period
+            # of latency. Rank remaining usable reserves before freshness.
+            step_ns=round(1e9/config['fps'])
+            reserves=[sum(other.frame_id>chosen.frame_id
+                and 0 <= (target_ns+step_ns-frame_time(other))/1e6 <= config['camera_alignment_max_offset_ms']
+                and 0 <= (observed_ns+step_ns-other.received_ns)/1e6 <= config['camera_max_age_ms']
+                for other in eligible[key]) for key,chosen in zip(keys,frames)]
+            score=(min(reserves),sum(reserves),min(stamps),-(max(receipts)-min(receipts)),sum(stamps))
+        elif config.get('camera_pairing_policy')=='oldest_valid_causal_pair_v2':
             score = (-max(stamps), -sum(stamps))
         else:
             score = (min(stamps), sum(stamps))

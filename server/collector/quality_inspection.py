@@ -5,6 +5,8 @@ import numpy as np
 from PIL import Image
 from .storage import load_json
 
+INSPECTION_VERSION = 2
+
 DEFAULTS = dict(completeness_pct=98.0, receipt_skew_ms=10.0, jerk_rms=5.0,
                 speed_cv=0.6, batch_score=97.0, task_success_pct=90.0,
                 human_pass_pct=95.0, kappa=0.8, secondary_sample_pct=30.0,
@@ -85,7 +87,7 @@ def inspect_episode(raw, targets, checkpoint=lambda: None):
         if receipt:check('receipt_skew',max(receipt)<targets['receipt_skew_ms'],f'主机接收差最大 {max(receipt):.3f} ms；目标 < {targets["receipt_skew_ms"]} ms',False)
     check('capture_fault',not m.get('fault') and m.get('status') not in ('FAULT','RECOVERED'),m.get('fault') or m.get('status'))
     metrics=dict(completeness_pct=dict(value=complete,unit='%'),
-        receipt_skew_ms=dict(value=max(receipt),unit='ms') if receipt else unavailable('少于两路相机或时间缺失'),
+        receipt_skew_ms=dict(value=max(receipt),unit='ms',p50=float(np.percentile(receipt,50)),p95=float(np.percentile(receipt,95)),over_target_pct=100*sum(v>=targets['receipt_skew_ms'] for v in receipt)/len(receipt)) if receipt else unavailable('少于两路相机或时间缺失'),
         exposure_sync_ms=unavailable('未完成曝光时钟映射，主机接收差不能代表物理曝光同步'),
         image_offset_ms=dict(value=max(offsets),unit='ms') if offsets else unavailable('缺少图像对齐时间'),
         interpolation_gap_ms=dict(value=max(gaps),unit='ms') if gaps else unavailable('未录制关节插值证据'),
@@ -118,7 +120,7 @@ def inspect_episode(raw, targets, checkpoint=lambda: None):
     fatal=any(not c['passed'] and c['critical'] for c in checks)
     # Explicit project deduction model, not an industry certification.
     score=max(0,100-100*int(fatal)-5*sum(not c['passed'] and not c['critical'] for c in checks))
-    return dict(status='passed' if all(c['passed'] for c in checks) else 'failed',
+    return dict(inspection_version=INSPECTION_VERSION,status='passed' if all(c['passed'] for c in checks) else 'failed',
                 checks=checks,metrics=metrics,score=score,critical_failure=fatal,
                 score_model='项目规则：致命项直接0分，每个非致命未达标项扣5分；缺测项不计分并披露',
                 frame_count=n,targets=targets,physical_sync_verified=False)

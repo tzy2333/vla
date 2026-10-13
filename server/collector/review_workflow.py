@@ -10,7 +10,7 @@ import uuid
 from collections import Counter
 from .storage import atomic_json, load_json
 from .platform_management import real_episode, now, text
-from .quality_inspection import DEFAULTS, inspect_episode
+from .quality_inspection import DEFAULTS, INSPECTION_VERSION, inspect_episode
 
 BUSY=('PREPARING','RECORDING','EXPORTING')
 ERROR_TYPES=('sensor','motion','annotation','format','sync','other')
@@ -48,28 +48,40 @@ class ReviewWorkflow:
 
     def load(self,ident):
         p=self.root/(ident+'.json')
-        return load_json(p) if p.exists() else dict(episode_id=ident,revision='0',state='pending_primary',cycle=0,
+        d=load_json(p) if p.exists() else dict(episode_id=ident,revision='0',state='pending_primary',cycle=0,
             primary=None,secondary=None,blind=None,outcome='unknown',history=[],l1=None,metadata={})
+        # Compatibility is a view over existing decisions, never a new human vote.
+        if d['state']=='pending_secondary' and (d.get('primary') or {}).get('decision')=='pass':
+            d['state']='approved'
+        if not any(h.get('stage') in ('primary','secondary','blind','arbitration','resubmit') for h in d['history']):
+            m=load_json(self.app.episode_path(ident)/'manifest.json')
+            if m.get('status') in ('COMMITTED','DISCARDED'):
+                d['legacy_decision']='pass' if m['status']=='COMMITTED' else 'reject'
+                d['state']='approved' if m['status']=='COMMITTED' else 'rejected'
+                if m.get('success') is not None:d['outcome']='success' if m['success'] else 'failure'
+        return d
 
     def read(self,ident):
         with self.lock:
             _,m=self.context(ident);d=self.load(ident)
             return dict(d,legacy_status=m.get('status'),raw_retained=True)
 
-    def _save(self,d):
-        d['revision']=uuid.uuid4().hex;d['updated_at']=now();atomic_json(self.root/(d['episode_id']+'.json'),d)
+    def _save(self,d,human=True):
+        if human:d['revision']=uuid.uuid4().hex
+        d['updated_at']=now();atomic_json(self.root/(d['episode_id']+'.json'),d)
         return copy.deepcopy(d)
 
     def mutate(self,b):
         with self.lock,self.app.lock:
             if self.app.phase in BUSY:raise ValueError('请先结束录制或导出。')
             ident=b.get('episode_id');self.context(ident);d=self.load(ident)
-            if b.get('revision')!=d['revision']:raise ValueError('审核或自动检查已更新，请刷新后重试。')
-            reviewer=text(b.get('reviewer',''),80,'审核员',True)
+            if b.get('revision')!=d['revision']:raise ValueError('另一条人工审核已提交，请重新打开核对后再提交。')
+            reviewer=text(b.get('reviewer',''),80,'审核员',b.get('stage') not in ('primary','resubmit'))
             stage=b.get('stage');decision=b.get('decision');reason=text(b.get('reason',''),1000,'原因')
             outcome=b.get('outcome','unknown')
             if outcome not in ('unknown','success','failure','recovery'):raise ValueError('任务结果无效。')
             if stage=='resubmit':
+                d.pop('legacy_decision',None)
                 if d['state'] not in ('rejected','rework'):raise ValueError('仅返工或不通过片段可以重提。')
                 if not reason:raise ValueError('请填写返工或重提说明。')
                 d.update(state='pending_primary',cycle=d['cycle']+1,primary=None,secondary=None,blind=None)
@@ -80,24 +92,21 @@ class ReviewWorkflow:
                 if error not in ERROR_TYPES:raise ValueError('错误类型无效。')
                 if stage=='primary' and d['state']!='pending_primary':raise ValueError('当前不是待初审状态。')
                 if stage=='secondary':
-                    if d['state']!='pending_secondary':raise ValueError('请先完成初审。')
-                    if reviewer==d['primary']['reviewer']:raise ValueError('复审必须由另一位审核员完成。')
+                    if d['state'] not in ('approved','pending_secondary') or d.get('secondary'):raise ValueError('仅已通过且尚未复审的片段可以复审。')
+                    if reviewer==(d.get('primary') or {}).get('reviewer'):raise ValueError('复审必须由另一位审核员完成。')
                 if stage=='blind':
-                    if not d['primary'] or reviewer==d['primary']['reviewer'] or d['blind']:raise ValueError('独立抽检须由另一位审核员完成，且同轮只提交一次。')
+                    if not d['primary'] or not d['primary'].get('reviewer') or reviewer==d['primary']['reviewer'] or d['blind']:raise ValueError('独立抽检须由另一位审核员完成，且同轮只提交一次。')
                     if b.get('independent') is not True:raise ValueError('请确认独立判定，未参考初审意见。')
                 if stage=='arbitration':
                     if d['state'] not in ('rejected','rework','disputed') or not reason:raise ValueError('仲裁须针对争议/不通过/返工，并填写理由。')
                     if reviewer in {x['reviewer'] for x in (d.get('primary'),d.get('secondary'),d.get('blind')) if x}:raise ValueError('仲裁须由第三位审核员处理。')
-                if decision=='pass' and stage!='blind':
-                    if not d['l1'] or d['l1']['status']!='passed':raise ValueError('自动初筛尚未通过，请检查报告和项目阈值后重新初筛。')
-                    if d['l1'].get('targets_revision')!=self.targets()['revision']:raise ValueError('阈值已更改，请重新初筛后通过。')
                 item=dict(stage=stage,decision=decision,reviewer=reviewer,reason=reason,error_type=error,
                           outcome=outcome,at=now(),cycle=d['cycle'])
                 if stage in ('primary','secondary','blind'):d[stage]=item
                 if stage=='blind':
                     if (decision=='pass')!=(d['primary']['decision']=='pass'):d['state']='disputed'
                 else:
-                    d['state']=('pending_secondary' if stage=='primary' else 'approved') if decision=='pass' else ('rejected' if decision=='reject' else 'rework')
+                    d['state']='approved' if decision=='pass' else ('rejected' if decision=='reject' else 'rework')
                     d['outcome']=outcome
             metadata=b.get('metadata',{})
             if not isinstance(metadata,dict) or set(metadata)-{'scene','object','lighting','environment','rubric'}:raise ValueError('元数据字段无效。')
@@ -117,9 +126,8 @@ class ReviewWorkflow:
         with self.lock:
             d=self.load(ident);d['l1']=report
             d['history'].append(dict(stage='automatic',at=now(),status=report['status'],targets_revision=targets['revision']))
-            # A previous approval never survives a newly failed automatic check.
-            if report['status']!='passed' and d['state']=='approved':d['state']='rework'
-            return self._save(d)
+            # Quality checks are advisory and do not invalidate human edits or approvals.
+            return self._save(d,human=False)
 
     def queue_check(self,ident):
         with self.lock:
@@ -127,8 +135,7 @@ class ReviewWorkflow:
             if self.active==ident:raise ValueError('该片段正在检查。')
             if d['l1']:d['history'].append(dict(stage='automatic_previous',report=d['l1']))
             d['l1']=None
-            if d['state']=='approved':d['state']='pending_secondary'
-            return self._save(d)
+            return self._save(d,human=False)
 
     def _loop(self):
         while not self.stop.wait(3):
@@ -136,13 +143,13 @@ class ReviewWorkflow:
                 if self.app.phase in BUSY:continue
                 for ep in self.app.episodes():
                     if self.stop.is_set() or self.app.phase in BUSY:break
-                    if not real_episode(ep) or self.load(ep['episode_id'])['l1'] is not None:continue
+                    if not real_episode(ep) or (self.load(ep['episode_id'])['l1'] or {}).get('inspection_version')==INSPECTION_VERSION:continue
                     self.active=ep['episode_id']
                     try:self.inspect(self.active)
                     except InterruptedError:break
                     except Exception as exc:
                         with self.lock:
-                            d=self.load(self.active);d['l1']=dict(status='error',error=str(exc),checked_at=now());self._save(d)
+                            d=self.load(self.active);d['l1']=dict(status='error',error=str(exc),checked_at=now(),inspection_version=INSPECTION_VERSION);self._save(d,human=False)
                     finally:self.active=None
             except Exception:continue
 
@@ -156,6 +163,7 @@ class ReviewWorkflow:
                 d=self.load(ep['episode_id']);entries.append(dict(episode=ep,review=d))
             ds=[e['review'] for e in entries];n=len(ds)
             count=lambda state:sum(d['state']==state for d in ds)
+            legacy_pass=sum(d.get('legacy_decision')=='pass' for d in ds);legacy_reject=sum(d.get('legacy_decision')=='reject' for d in ds)
             primary=[d['primary'] for d in ds if d['primary']]; secondary=[d['secondary'] for d in ds if d['secondary']]
             rate=lambda a,b:round(100*a/b,2) if b else None
             pairs=[(d['primary']['decision']=='pass',d['blind']['decision']=='pass') for d in ds if d['primary'] and d['blind']]
@@ -171,10 +179,10 @@ class ReviewWorkflow:
             outcomes=Counter(d['outcome'] for d in ds if d['outcome']!='unknown')
             errors=Counter(next((h.get('error_type','other') for h in reversed(d['history']) if h.get('reviewer')), 'other') for d in ds if d['state'] in ('rejected','rework','disputed'))
             diversity={k:dict(Counter(str((e['review']['metadata'].get(k) or (e['episode'].get('task_metadata') or {}).get(k) or (e['episode'].get('operator') if k=='operator' else '未填写'))) for e in entries)) for k in ('operator','scene','object','lighting')}
-            delivered=sum(d['state']=='approved' and d['l1'] and d['l1']['status']=='passed' and d['l1'].get('targets_revision')==targets['revision'] for d in ds)
+            delivered=count('approved')
             summary=dict(total=n,pending=count('pending_primary')+count('pending_secondary'),pending_primary=count('pending_primary'),pending_secondary=count('pending_secondary'),
-                primary_passed=sum(x['decision']=='pass' for x in primary),primary_decided=len(primary),
-                primary_rate=rate(sum(x['decision']=='pass' for x in primary),len(primary)),
+                primary_passed=sum(x['decision']=='pass' for x in primary)+legacy_pass,primary_decided=len(primary)+legacy_pass+legacy_reject,
+                primary_rate=rate(sum(x['decision']=='pass' for x in primary)+legacy_pass,len(primary)+legacy_pass+legacy_reject),
                 secondary_passed=sum(x['decision']=='pass' for x in secondary),secondary_decided=len(secondary),
                 secondary_rate=rate(sum(x['decision']=='pass' for x in secondary),len(secondary)),
                 rejected=count('rejected'),rework=count('rework'),disputed=count('disputed'),final_delivery=delivered,
@@ -183,7 +191,7 @@ class ReviewWorkflow:
                 task_success_rate=rate(outcomes['success'],outcomes['success']+outcomes['failure']),
                 failure_recovery_pct=rate(outcomes['failure']+outcomes['recovery'],sum(outcomes.values())),
                 outcomes=dict(outcomes),paired_count=len(pairs),agreement_pct=agreement*100 if agreement is not None else None,kappa=kappa,
-                batch_score=score,batch_status='不通过（致命项）' if critical else '待完整初筛' if len(l1)!=n or not n or stale else '不通过' if score<targets['values']['batch_score'] else '样本不足' if n<targets['values']['minimum_episodes'] else '已检测项目达标',
+                batch_score=score,batch_status='警告：存在数据异常' if critical else '待完整初筛' if len(l1)!=n or not n or stale else '警告：未达目标' if score<targets['values']['batch_score'] else '样本不足' if n<targets['values']['minimum_episodes'] else '已检测项目达标',
                 error_types=dict(errors),diversity=diversity)
             return dict(entries=entries,summary=summary,targets=targets,active_check=self.active,export_job=copy.deepcopy(self.export_job))
 
@@ -195,7 +203,7 @@ class ReviewWorkflow:
             if self.app.phase in BUSY or self.export_job['status']=='running':raise ValueError('请先结束当前采集或导出。')
             for ident in ids:
                 self.context(ident);d=self.load(ident)
-                if d['state']!='approved' or not d['l1'] or d['l1']['status']!='passed' or d['l1'].get('targets_revision')!=self.targets()['revision']:raise ValueError('仅导出当前阈值初筛通过并已完成复审/仲裁的片段。')
+                if d['state']!='approved':raise ValueError('请先人工审核通过所选片段；无需等待自动检查或复审。')
             previous=self.app.phase;self.app.phase='EXPORTING'
             self.export_job=dict(status='running',started_at=now(),episode_ids=ids,format='v2.1')
             reviews={ident:copy.deepcopy(self.load(ident)) for ident in ids}
