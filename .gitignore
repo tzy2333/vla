@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+*.pid
+*.lock
+.env
+.env.*
+!*.example
+server/config.json
+server/data/
+server/backups/
+*.inprogress/
+.DS_Store
+server/tests/fixtures/rf_zero_reference_20261012.json

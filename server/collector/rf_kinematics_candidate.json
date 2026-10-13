@@ -1,0 +1,446 @@
+{
+  "model_id": "rf_five_axis_cad_candidate_v1",
+  "calibrated": false,
+  "reference_frame": "torso_shoulder_midpoint",
+  "body_axes": {
+    "x": "forward",
+    "y": "left",
+    "z": "up"
+  },
+  "position_unit": "m",
+  "angle_unit": "rad",
+  "quaternion_order": "wxyz",
+  "quaternion_semantics": "rotation_of_TCP_frame_into_torso_frame",
+  "tcp_zero_axes": {
+    "x": "forward",
+    "y": "right",
+    "z": "down"
+  },
+  "assumptions": [
+    "First two shoulder axes are orthogonal, coplanar with the drawing, and intersect at the depicted shoulder center.",
+    "No unshown front/back or lateral offsets are included.",
+    "167 and 113 mm form the upper-arm vertical dimension chain; 184 mm runs from the elbow axis to the gripper upper datum.",
+    "Upper-arm and wrist twist axes follow each link centerline; the elbow flexion axis is parallel to the first shoulder axis at zero.",
+    "User motion directions are mapped into MODEL axes. Position uses 2*pi per V3 PDF p3, after subtracting the 100-sample median of the current user-declared zero posture. This establishes the model zero reference, not an independent absolute accuracy measurement.",
+    "TCP zero orientation is a chosen convention, not a measured or supplier-defined orientation.",
+    "Right dexterous hand is approximated by the same gripper TCP definition at the user's request; physical TCP accuracy there is unverified."
+  ],
+  "tcp_translation_m": [
+    0,
+    0,
+    -0.021
+  ],
+  "tcp_rpy_rad": [
+    3.141592653589793,
+    0,
+    0
+  ],
+  "arms": {
+    "left": {
+      "motor_ids": [
+        12,
+        14,
+        24,
+        16,
+        18
+      ],
+      "obs_indices": [
+        1,
+        3,
+        5,
+        7,
+        9
+      ],
+      "encoder_to_model": {
+        "conversion_version": 1,
+        "status": "documented_scale_and_sampled_zero_reference_applied",
+        "formula": "q_model_rad = sign * scale_rad_per_raw * (q_raw_normalized - zero_raw)",
+        "model_axes": [
+          [
+            0,
+            -1,
+            0
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            -1
+          ],
+          [
+            0,
+            -1,
+            0
+          ],
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        "model_sign_for_named_motion": [
+          1,
+          1,
+          -1,
+          1,
+          -1
+        ],
+        "sign": [
+          -1,
+          1,
+          -1,
+          -1,
+          -1
+        ],
+        "sign_basis": "Latest user semantic directions; candidate positive shoulder/elbow angles produce the named motion, but positive axial angles rotate inward.",
+        "upper_arm_outward_reference": "With elbow flexed forward, forearm moves away from torso: +Y on left, -Y on right.",
+        "wrist_outward_reference": "At straight-arm zero, TCP +X marker rotates from forward toward ipsilateral outward (+Y left, -Y right). This makes wrist outward semantics explicit; marker alignment is not physically calibrated.",
+        "input_representation": "normalized_joint_feedback_user_confirmed",
+        "scale_rad_per_raw": [
+          6.283185307179586,
+          6.283185307179586,
+          6.283185307179586,
+          6.283185307179586,
+          6.283185307179586
+        ],
+        "zero_raw": [
+          -6.944444521650439e-06,
+          0.006927777547389269,
+          9.722221875563264e-06,
+          -1.3888889043300878e-06,
+          -1.5277777492883615e-05
+        ],
+        "normalization_verified": false,
+        "physical_calibration_verified": false,
+        "zero_note": "Current user-declared zero posture is mapped to all five model angles = 0. No encoder registers were written. CAD geometry/TCP frame are used as configured; independent absolute accuracy is not measured.",
+        "normalization_rule_documented": true,
+        "normalization_source": {
+          "file": "交付文档/参考资料_v1.5/V3_运动框架_接口说明.pdf",
+          "page": 3,
+          "sha256": "6ef79744928c0f91173acee97be0b2656d79a660eaa95dbc10cd31f743f35322",
+          "pulses_per_revolution": 720000,
+          "normalized_position_range": [
+            -1,
+            1
+          ],
+          "formula": "encoder_angle_rad = normalized_position * 2*pi"
+        },
+        "zero_policy": "subtract_median_of_user_declared_zero_pose",
+        "zero_calibration_verified": true,
+        "zero_calibration_scope": "encoder_reference_at_user_declared_pose_only",
+        "zero_calibration_source": {
+          "project_relative_path": ".document_qa/rf_zero_pose_20261012_173103.json",
+          "sha256": "e096a3201982cc71d53fc840cd27a994525fb50eb9351597c168b4c1ab9f9dfd",
+          "started_utc": "2026-10-12T09:31:03.614004+00:00",
+          "sample_count": 100,
+          "request_rate_hz": 20,
+          "method": "median_of_user_declared_current_zero_pose",
+          "user_zero_pose_confirmed": true,
+          "max_arm_position_range_deg": 0.0005000001692678779,
+          "stability_threshold_deg": 0.1,
+          "physical_accuracy_verified": false,
+          "measurement_timestamp_available": false
+        }
+      },
+      "joints": [
+        {
+          "name": "forward_raise",
+          "origin_m": [
+            0,
+            0.135,
+            0
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            -1,
+            0
+          ]
+        },
+        {
+          "name": "side_swing",
+          "origin_m": [
+            0,
+            0.065,
+            0
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "upper_arm_rotation",
+          "origin_m": [
+            0,
+            0,
+            -0.167
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            -1
+          ]
+        },
+        {
+          "name": "elbow",
+          "origin_m": [
+            0,
+            0,
+            -0.113
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            -1,
+            0
+          ]
+        },
+        {
+          "name": "wrist_rotation",
+          "origin_m": [
+            0,
+            0,
+            -0.184
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            -1
+          ]
+        }
+      ]
+    },
+    "right": {
+      "motor_ids": [
+        11,
+        13,
+        23,
+        15,
+        17
+      ],
+      "obs_indices": [
+        0,
+        2,
+        4,
+        6,
+        8
+      ],
+      "encoder_to_model": {
+        "conversion_version": 1,
+        "status": "documented_scale_and_sampled_zero_reference_applied",
+        "formula": "q_model_rad = sign * scale_rad_per_raw * (q_raw_normalized - zero_raw)",
+        "model_axes": [
+          [
+            0,
+            -1,
+            0
+          ],
+          [
+            -1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            -1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "model_sign_for_named_motion": [
+          1,
+          1,
+          -1,
+          1,
+          -1
+        ],
+        "sign": [
+          -1,
+          -1,
+          1,
+          -1,
+          1
+        ],
+        "sign_basis": "Latest user semantic directions; candidate positive shoulder/elbow angles produce the named motion, but positive axial angles rotate inward.",
+        "upper_arm_outward_reference": "With elbow flexed forward, forearm moves away from torso: +Y on left, -Y on right.",
+        "wrist_outward_reference": "At straight-arm zero, TCP +X marker rotates from forward toward ipsilateral outward (+Y left, -Y right). This makes wrist outward semantics explicit; marker alignment is not physically calibrated.",
+        "input_representation": "normalized_joint_feedback_user_confirmed",
+        "scale_rad_per_raw": [
+          6.283185307179586,
+          6.283185307179586,
+          6.283185307179586,
+          6.283185307179586,
+          6.283185307179586
+        ],
+        "zero_raw": [
+          5.555555617320351e-06,
+          -0.006949999835342169,
+          0.0,
+          0.0,
+          -9.722221875563264e-06
+        ],
+        "normalization_verified": false,
+        "physical_calibration_verified": false,
+        "zero_note": "Current user-declared zero posture is mapped to all five model angles = 0. No encoder registers were written. CAD geometry/TCP frame are used as configured; independent absolute accuracy is not measured.",
+        "normalization_rule_documented": true,
+        "normalization_source": {
+          "file": "交付文档/参考资料_v1.5/V3_运动框架_接口说明.pdf",
+          "page": 3,
+          "sha256": "6ef79744928c0f91173acee97be0b2656d79a660eaa95dbc10cd31f743f35322",
+          "pulses_per_revolution": 720000,
+          "normalized_position_range": [
+            -1,
+            1
+          ],
+          "formula": "encoder_angle_rad = normalized_position * 2*pi"
+        },
+        "zero_policy": "subtract_median_of_user_declared_zero_pose",
+        "zero_calibration_verified": true,
+        "zero_calibration_scope": "encoder_reference_at_user_declared_pose_only",
+        "zero_calibration_source": {
+          "project_relative_path": ".document_qa/rf_zero_pose_20261012_173103.json",
+          "sha256": "e096a3201982cc71d53fc840cd27a994525fb50eb9351597c168b4c1ab9f9dfd",
+          "started_utc": "2026-10-12T09:31:03.614004+00:00",
+          "sample_count": 100,
+          "request_rate_hz": 20,
+          "method": "median_of_user_declared_current_zero_pose",
+          "user_zero_pose_confirmed": true,
+          "max_arm_position_range_deg": 0.0005000001692678779,
+          "stability_threshold_deg": 0.1,
+          "physical_accuracy_verified": false,
+          "measurement_timestamp_available": false
+        }
+      },
+      "joints": [
+        {
+          "name": "forward_raise",
+          "origin_m": [
+            0,
+            -0.135,
+            0
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            -1,
+            0
+          ]
+        },
+        {
+          "name": "side_swing",
+          "origin_m": [
+            0,
+            -0.065,
+            0
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            -1,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "upper_arm_rotation",
+          "origin_m": [
+            0,
+            0,
+            -0.167
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "name": "elbow",
+          "origin_m": [
+            0,
+            0,
+            -0.113
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            -1,
+            0
+          ]
+        },
+        {
+          "name": "wrist_rotation",
+          "origin_m": [
+            0,
+            0,
+            -0.184
+          ],
+          "origin_rpy_rad": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        }
+      ]
+    }
+  }
+}

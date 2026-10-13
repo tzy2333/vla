@@ -1,0 +1,155 @@
+{
+  "source": "C:\\Users\\TZY\\Desktop\\五轴link长度标注.dwg",
+  "format": "AC1018_AutoCAD_2004",
+  "drawing_units": "mm",
+  "source_type": "single_2D_projection_not_3D_joint_assembly",
+  "parser_note": "LibreDWG reported code 64; all six cached annotation texts agree with decoded dimension measurements. No complete 3-D model is inferred.",
+  "dimensions": [
+    {
+      "handle": "524",
+      "annotation_mm": 113.0,
+      "length_m": 0.113,
+      "visible_segment": "intermediate_connection_datum_to_lower_side_joint_center",
+      "point1_drawing_units": {
+        "x": 586.5306294456909,
+        "y": 436.362018034823,
+        "z": 0
+      },
+      "point2_drawing_units": {
+        "x": 591.5072610676059,
+        "y": 379.86201803482356,
+        "z": 0
+      },
+      "annotation_to_projected_geometry_ratio": 2
+    },
+    {
+      "handle": "53E",
+      "annotation_mm": 270.0,
+      "length_m": 0.27,
+      "visible_segment": "upper_horizontal_segment",
+      "point1_drawing_units": {
+        "x": 541.0072610676186,
+        "y": 535.0215756793582,
+        "z": 0
+      },
+      "point2_drawing_units": {
+        "x": 406.00726106731014,
+        "y": 519.8620180348078,
+        "z": 0
+      },
+      "annotation_to_projected_geometry_ratio": 2
+    },
+    {
+      "handle": "556",
+      "annotation_mm": 65.0,
+      "length_m": 0.065,
+      "visible_segment": "horizontal_segment_right_end_to_upper_round_joint_center",
+      "point1_drawing_units": {
+        "x": 541.0072610676185,
+        "y": 535.8120477641098,
+        "z": 0
+      },
+      "point2_drawing_units": {
+        "x": 573.5072610676216,
+        "y": 519.8620180348236,
+        "z": 0
+      },
+      "annotation_to_projected_geometry_ratio": 2
+    },
+    {
+      "handle": "56E",
+      "annotation_mm": 167.0,
+      "length_m": 0.167,
+      "visible_segment": "upper_round_joint_center_to_intermediate_connection_datum",
+      "point1_drawing_units": {
+        "x": 586.5306294456909,
+        "y": 436.362018034823,
+        "z": 0
+      },
+      "point2_drawing_units": {
+        "x": 573.5072610676276,
+        "y": 519.8620180348286,
+        "z": 0
+      },
+      "annotation_to_projected_geometry_ratio": 2
+    },
+    {
+      "handle": "586",
+      "annotation_mm": 42,
+      "length_m": 0.042,
+      "visible_segment": "gripper_length_user_confirmed_TCP_at_midpoint",
+      "point1_drawing_units": {
+        "x": 573.5072610676659,
+        "y": 287.86201803482356,
+        "z": 0
+      },
+      "point2_drawing_units": {
+        "x": 573.5072610676214,
+        "y": 266.86201803482356,
+        "z": 0
+      },
+      "annotation_to_projected_geometry_ratio": 2
+    },
+    {
+      "handle": "59E",
+      "annotation_mm": 184.0,
+      "length_m": 0.184,
+      "visible_segment": "lower_side_joint_center_to_end_mounting_datum",
+      "point1_drawing_units": {
+        "x": 573.5072610676659,
+        "y": 287.86201803482356,
+        "z": 0
+      },
+      "point2_drawing_units": {
+        "x": 596.007261067618,
+        "y": 379.86201803483857,
+        "z": 0
+      },
+      "annotation_to_projected_geometry_ratio": 2
+    }
+  ],
+  "base_frame_candidate": "torso_shoulder_midpoint_selected_by_user",
+  "shoulder_spacing": {
+    "source": "user_identified_CAD_65mm_side_span_corrects_prior_85mm_estimate_270_plus_65_plus_65",
+    "center_to_center_m": 0.4,
+    "central_span_m": 0.27,
+    "side_spans_m": [0.065, 0.065],
+    "half_spacing_m": 0.2,
+    "shoulder_centers_in_proposed_midpoint_frame_m": {
+      "left": [0, 0.2, 0],
+      "right": [0, -0.2, 0]
+    },
+    "side_span_correction": "User clarified the side span is the original CAD 65mm dimension; prior 85mm estimate superseded."
+  },
+  "bilateral_symmetry_user_confirmed": true,
+  "joint_function_mapping_user_confirmed": true,
+  "photo_observation": "User supplied assembled robot photo and confirmed the 42 mm CAD segment is gripper length, with TCP at its midpoint.",
+  "additional_structure_images": {
+    "isometric": "D:/WeChat/xwechat_files/wxid_0fnhl3pb1i5g22_b40d/temp/RWTemp/2026-10/9e20f478899dc29eb19741386f9343c8/59bec6f1e9cd49863ff94b9a01b81632.jpg",
+    "dimensioned_projection": "D:/WeChat/xwechat_files/wxid_0fnhl3pb1i5g22_b40d/temp/RWTemp/2026-10/9e20f478899dc29eb19741386f9343c8/14bc6d44bb3b049536e8ca2ec20aab49.jpg",
+    "observation": "Isometric view supports identification of two shoulder axes, longitudinal upper-arm rotation, transverse elbow axis and longitudinal wrist rotation in series. Projection retains the six known dimensions.",
+    "metric_use": "Use annotated dimensions; do not derive exact 3D axis offsets from perspective pixels.",
+    "direction_source": "rf_observation_mapping.json joint_motion_directions; images contain no verified motor direction arrows"
+  },
+  "tcp_definition": {
+    "user_confirmed": true,
+    "reference_dimension_handle": "586",
+    "gripper_length_m": 0.042,
+    "fraction_from_upper_datum": 0.5,
+    "distance_from_upper_datum_m": 0.021,
+    "direction": "along_gripper_length_toward_tip",
+    "full_wrist_joint_to_TCP_transform": null
+  },
+  "proposed_body_axes": {
+    "x": "robot_forward",
+    "y": "robot_left",
+    "z": "up"
+  },
+  "unresolved": [
+    "exact_3D_joint_axis_referenced_by_CAD_round_shoulder_center",
+    "out_of_plane_joint_offsets_and_axis_directions",
+    "precise_3D_joint_axis_locations_in_drawing_for_confirmed_motor_IDs",
+    "encoder_zero_offsets_and_semantic_direction_to_3D_model_axis_mapping"
+  ],
+  "usable_as_complete_kinematic_model": false
+}

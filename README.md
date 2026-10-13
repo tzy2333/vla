@@ -1,0 +1,54 @@
+# 机器人数采平台 · v1.13
+
+模块化真实观测采集、相机管理、回放、集中审核与 LeRobot v2.1 导出。
+
+## 功能
+
+- 自选关节模块和相机，开始录制时自动连接所选相机。
+- Orbbec / RealSense 自动发现；新增相机下一轮使用。
+- 实时采集与历史回放分区，回放自动播放、多路画面对齐。
+- 采集总览展示初审通过、待审核、复审通过、不通过数量。
+- 自动初筛、人工初审、交叉复审、独立抽检、仲裁及返工记录。
+- LeRobot v2.1：每段 Parquet、每相机每段 MP4、任务和统计元数据。
+
+## 运行
+
+服务运行于 Linux / Jetson，浏览器访问管理页面。Python 3.10+。
+
+```bash
+cd server
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cp config.example.json config.json
+```
+
+配置机器人地址、相机序列号和允许访问的主机；默认只监听本机，相机保持释放。相机需要安装对应平台的 `pyorbbecsdk` / `pyrealsense2`，YUYV 转换需要 OpenCV。不要直接套用示例标定参数。
+
+```bash
+bash manage.sh start
+# 本机访问 http://127.0.0.1:8766
+bash manage.sh status
+bash manage.sh stop
+```
+
+v2.1 官方回读验证使用 `lerobot==0.3.3`，请在与设备依赖兼容的环境中安装。实际部署验证使用 NumPy 1.26.4、PyAV 16.1.0、PyArrow 23.0.1。
+
+## 开发与验证
+
+```bash
+python gui_source/build_web.py
+cd server
+python tests/run_release_suite.py
+```
+
+界面源码在 `gui_source/`，生成页面在 `server/web/index.html`。发布回归为 96 项隔离测试；包含相机准备、审核状态、质量边界和动态 v2.1 导出。实体相机枚举及官方 v2.1 加载另行验证。
+
+## 数据边界
+
+当前保存真实图像与关节反馈，尚未接入真实控制目标；导出为观测档案，`training_ready=false`。不生成虚构 action。在线末端正解保持关闭；曝光同步、标定末端指标、深度、物理力/扭矩及有效夹爪特征仍需对应接口和标定。
+
+未审核及不通过数据均保留。质量目标可配置；任务失败与数据质量不通过分别标记。独立抽检以审核员自报独立判断为依据，当前未实现账户认证或严格盲审权限隔离。
+
+仓库不包含运行配置、密码、原始 episode、部署备份及日志。旧模拟辅助模块仅保留作离线测试，生产入口拒绝模拟采集。
+
+私有标定参考采样未分发，相关可选复核测试在缺少样本时跳过。

@@ -1,0 +1,72 @@
+{
+  "mode": "real",
+  "head_camera_serial": "ORBBEC_SERIAL",
+  "head_camera_profile": {
+    "width": 1280,
+    "height": 800,
+    "fps": 60,
+    "use_sdk_host_arrival": true
+  },
+  "host": "127.0.0.1",
+  "port": 8766,
+  "allowed_hosts": [
+    "127.0.0.1",
+    "localhost"
+  ],
+  "fps": 50,
+  "sampling_mode": "fixed_grid_causal_images_interpolated_state",
+  "timing_version": 1,
+  "feedback_poll_hz": 100,
+  "feedback_warmup_ms": 60,
+  "state_interpolation_max_gap_ms": 40,
+  "alignment_wait_budget_ms": 30,
+  "alignment_wait_policy": "fixed_target_deadline_30ms_v2",
+  "camera_alignment_max_offset_ms": 30,
+  "command_send_max_delay_ms": 40,
+  "continuous_joint_indices": [],
+  "action_horizon": 50,
+  "wrist_cameras": {
+    "left_wrist": {
+      "serial": "REALSENSE_SERIAL",
+      "width": 848,
+      "height": 480,
+      "fps": 60,
+      "jpeg_backend": "simplejpeg",
+      "sdk_queue_size": 16,
+      "stream_format": "yuyv",
+      "conversion_threads": 1,
+      "use_sdk_host_arrival": true
+    }
+  },
+  "require_ee_feedback": false,
+  "camera_fps": 90,
+  "width": 320,
+  "height": 240,
+  "camera_max_age_ms": 60,
+  "camera_pair_max_skew_ms": 20,
+  "camera_pairing_policy": "oldest_valid_causal_pair_v2",
+  "camera_wait_budget_ms": 15,
+  "feedback_max_age_ms": 100,
+  "sample_lateness_max_ms": 75,
+  "writer_queue_size": 512,
+  "flush_every_frames": 10,
+  "minimum_free_mb": 512,
+  "max_episode_seconds": 600,
+  "base_enabled": false,
+  "data_dir": "data",
+  "camera_process_isolation": false,
+  "capture_version": 7,
+  "capture_purpose": "observation",
+  "rf_robot": {
+    "host": "127.0.0.1",
+    "port": 3000,
+    "receive_port": 3002,
+    "poll_hz": 50,
+    "timeout_ms": 100
+  },
+  "compute_ee_online": false,
+  "released_cameras": [
+    "head",
+    "left_wrist"
+  ]
+}

@@ -1,0 +1,5 @@
+numpy>=1.23,<3
+Pillow>=9.0
+simplejpeg==1.9.0
+pyarrow==23.0.1
+av==16.1.0

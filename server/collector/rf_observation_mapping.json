@@ -1,0 +1,331 @@
+{
+  "mapping_version": 7,
+  "status": "offline_conversion_documented_scale_sampled_zero_not_integrated",
+  "source_script": "/home/jetson/get/rfcontrol/util/pull_obs.py",
+  "semantic_source": "Latest user clarification and V3 interface PDF p3, 2026-10-12: joint feedback is normalized. Position 720000 pulses = 360 degrees; [-720000,720000] maps to [-1,1]. Supersedes prior ordinary-raw-angle assumption.",
+  "obs_length": 96,
+  "axis_ids_by_slot": [
+    11,
+    12,
+    13,
+    14,
+    23,
+    24,
+    15,
+    16,
+    17,
+    18,
+    0,
+    0,
+    0,
+    0,
+    19,
+    20,
+    0,
+    0,
+    0,
+    0
+  ],
+  "motor_blocks": {
+    "position": 0,
+    "velocity": 20,
+    "torque": 40,
+    "length": 20
+  },
+  "value_representation": "normalized_joint_feedback_preserved_position_rad_equals_raw_times_2pi",
+  "units": {
+    "joint_angle_contract": "rad",
+    "cartesian_position_contract": "m",
+    "raw_interface_scale_verified": true,
+    "velocity": null,
+    "torque": null,
+    "raw_joint_representation": "normalized",
+    "normalization_formula": "q_encoder_rad = q_raw * 2*pi",
+    "raw_interface_scale_verification_basis": "supplier_document_p3_not_physical_measurement",
+    "normalization_source": {
+      "file": "交付文档/参考资料_v1.5/V3_运动框架_接口说明.pdf",
+      "page": 3,
+      "sha256": "6ef79744928c0f91173acee97be0b2656d79a660eaa95dbc10cd31f743f35322",
+      "pulses_per_revolution": 720000,
+      "normalized_position_range": [
+        -1,
+        1
+      ],
+      "formula": "encoder_angle_rad = normalized_position * 2*pi"
+    },
+    "physical_scale_verified": false
+  },
+  "arm_zero_pose": {
+    "user_confirmed": true,
+    "description": "Both arms hang vertically down, elbows straight, grippers point toward the ground.",
+    "arm_to_ground_angle_deg": 90,
+    "model_joint_zero_rad": 0,
+    "encoder_offsets": {
+      "left": [
+        -6.944444521650439e-06,
+        0.006927777547389269,
+        9.722221875563264e-06,
+        -1.3888889043300878e-06,
+        -1.5277777492883615e-05
+      ],
+      "right": [
+        5.555555617320351e-06,
+        -0.006949999835342169,
+        0.0,
+        0.0,
+        -9.722221875563264e-06
+      ]
+    },
+    "positive_rotation_signs": null,
+    "positive_rotation_signs_note": "User motion signs preserved below. Model conversion: left [-1,1,-1,-1,-1], right [-1,-1,1,-1,1]. Subtract current sampled zero offsets, multiply by 2*pi, then model signs.",
+    "axial_rotation_zero_alignment": "Current user-declared zero posture defines model axial zero; TCP frame uses configured CAD convention.",
+    "encoder_offsets_unit": "normalized_position_subtract_before_2pi_and_model_sign",
+    "zero_calibration_source": {
+      "project_relative_path": ".document_qa/rf_zero_pose_20261012_173103.json",
+      "sha256": "e096a3201982cc71d53fc840cd27a994525fb50eb9351597c168b4c1ab9f9dfd",
+      "started_utc": "2026-10-12T09:31:03.614004+00:00",
+      "sample_count": 100,
+      "request_rate_hz": 20,
+      "method": "median_of_user_declared_current_zero_pose",
+      "user_zero_pose_confirmed": true,
+      "max_arm_position_range_deg": 0.0005000001692678779,
+      "stability_threshold_deg": 0.1,
+      "physical_accuracy_verified": false,
+      "measurement_timestamp_available": false
+    }
+  },
+  "requested_kinematics": {
+    "reference_frame": "torso_shoulder_midpoint",
+    "reference_origin_and_axes": {
+      "origin": "midpoint_of_400mm_shoulder_center_line_selected_by_user",
+      "x": "robot_forward",
+      "y": "robot_left",
+      "z": "up"
+    },
+    "shoulder_center_spacing_m_user_confirmed": 0.4,
+    "tcp_point": "user_defined_midpoint_of_each_42mm_gripper_length",
+    "tcp_distance_from_gripper_upper_datum_m": 0.021,
+    "tcp_fixed_transforms": null,
+    "robot_geometry": "offline_candidate_implemented_physical_axes_offsets_and_encoder_conversion_unverified",
+    "offline_model_file": "rf_kinematics_candidate.json",
+    "include_neck_joints": false,
+    "head_frame_transform": "optional_separate_transform_using_neck_joints_if_needed",
+    "pose_provenance": "forward_kinematics_from_real_joint_feedback_and_verified_model"
+  },
+  "quaternion": {
+    "normalized_user_confirmed": true,
+    "obs_indices": null,
+    "component_order": null,
+    "frame_definition": null
+  },
+  "physical_conversion": {
+    "implementation": "rf_kinematics.CandidateKinematics.angles_from_observation / forward_from_observation",
+    "profile_file": "rf_kinematics_candidate.json",
+    "conversion_version": 1,
+    "status": "offline_documented_scale_sampled_zero_applied",
+    "normalization_rule_verified": true,
+    "runtime_integration_enabled": false,
+    "physical_calibration_verified": false,
+    "zero_reference_calibrated": true,
+    "zero_calibration_source": {
+      "project_relative_path": ".document_qa/rf_zero_pose_20261012_173103.json",
+      "sha256": "e096a3201982cc71d53fc840cd27a994525fb50eb9351597c168b4c1ab9f9dfd",
+      "started_utc": "2026-10-12T09:31:03.614004+00:00",
+      "sample_count": 100,
+      "request_rate_hz": 20,
+      "method": "median_of_user_declared_current_zero_pose",
+      "user_zero_pose_confirmed": true,
+      "max_arm_position_range_deg": 0.0005000001692678779,
+      "stability_threshold_deg": 0.1,
+      "physical_accuracy_verified": false,
+      "measurement_timestamp_available": false
+    }
+  },
+  "joint_motion_directions": {
+    "source": "Latest user definitions and correction, 2026-10-12; supersedes earlier tentative CCW descriptions.",
+    "sign_semantics": "Sign of joint change producing the named anatomical motion; not a candidate FK axis multiplier.",
+    "outward_reference": "Away from robot torso on the respective side, not image-left/image-right.",
+    "right_arm_rule": "Do not invert all signs. Right 11 and 15 match left 12 and 16. Right 13 is opposite left 14. Latest user correction explicitly confirms outward rotation signs: left 24 and 18 positive, right 23 and 17 negative; these replace all previous signs and inferences for those four joints.",
+    "physical_motion_verified": false,
+    "by_motor_id": {
+      "12": {
+        "motion": "shoulder_forward_raise",
+        "sign": -1,
+        "source": "user_explicit"
+      },
+      "14": {
+        "motion": "shoulder_outward_swing",
+        "sign": 1,
+        "source": "user_explicit"
+      },
+      "24": {
+        "motion": "upper_arm_twist_forearm_outward",
+        "sign": 1,
+        "source": "user_explicit_latest_correction"
+      },
+      "16": {
+        "motion": "elbow_forward_flexion",
+        "sign": -1,
+        "source": "user_explicit_same_direction_as_12"
+      },
+      "18": {
+        "motion": "wrist_outward_twist",
+        "sign": 1,
+        "source": "user_explicit_latest_correction"
+      },
+      "11": {
+        "motion": "shoulder_forward_raise",
+        "sign": -1,
+        "source": "user_explicit_correction_same_sign_as_12"
+      },
+      "13": {
+        "motion": "shoulder_outward_swing",
+        "sign": -1,
+        "source": "user_explicit"
+      },
+      "23": {
+        "motion": "upper_arm_twist_forearm_outward",
+        "sign": -1,
+        "source": "user_explicit_latest_correction"
+      },
+      "15": {
+        "motion": "elbow_forward_flexion",
+        "sign": -1,
+        "source": "user_explicit_correction_same_sign_as_16"
+      },
+      "17": {
+        "motion": "wrist_outward_twist",
+        "sign": -1,
+        "source": "user_explicit_latest_correction"
+      }
+    }
+  },
+  "arm_joint_order": [
+    "forward_raise",
+    "side_swing",
+    "upper_arm_rotation",
+    "elbow",
+    "wrist_rotation"
+  ],
+  "left_arm": {
+    "axis_ids": [
+      12,
+      14,
+      24,
+      16,
+      18
+    ],
+    "position_obs_indices": [
+      1,
+      3,
+      5,
+      7,
+      9
+    ]
+  },
+  "right_arm": {
+    "axis_ids": [
+      11,
+      13,
+      23,
+      15,
+      17
+    ],
+    "position_obs_indices": [
+      0,
+      2,
+      4,
+      6,
+      8
+    ]
+  },
+  "neck": {
+    "base_rotation": {
+      "axis_id": 19,
+      "position_obs_index": 14
+    },
+    "upper_head_raise": {
+      "axis_id": 20,
+      "position_obs_index": 15
+    }
+  },
+  "gripper_channels": {
+    "obs_indices": [
+      60,
+      61
+    ],
+    "left_obs_index": null,
+    "right_obs_index": null,
+    "open_close_definition": null,
+    "normalized_range": [
+      0,
+      1
+    ],
+    "raw_device_range": [
+      0,
+      255
+    ],
+    "range_source": "V3 interface PDF p3; laterality and open/close meaning remain unspecified"
+  },
+  "dexterous_hand": {
+    "left_obs_indices": [
+      62,
+      63,
+      64,
+      65,
+      66,
+      67
+    ],
+    "right_obs_indices": [
+      68,
+      69,
+      70,
+      71,
+      72,
+      73
+    ],
+    "normalized_range": [
+      0,
+      1
+    ],
+    "raw_device_range": [
+      0,
+      255
+    ]
+  },
+  "unexplained_obs_indices": [
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95
+  ],
+  "tcp_pose_mapping": null,
+  "device_timestamp_mapping": null,
+  "measurement_sequence_mapping": null,
+  "runtime_integration_enabled": false,
+  "supplier_document_caveats": [
+    "p3 position block caption Obs[0]-Obs[60] is inclusive off-by-one; 20x3 values occupy [0:60], grippers start at 60.",
+    "p3 torque range prints [-32767,-32767]; do not infer physical torque units.",
+    "p4 emergency stop is 2005, unlike earlier local control source 2009; do not send either without resolving protocol version.",
+    "p4 lists 20001-20004 joint updates but does not define payload encoding, units or safe limits.",
+    "p3 reserved slots 74-95 mention future terminal orientation/base data without a usable field layout."
+  ]
+}
